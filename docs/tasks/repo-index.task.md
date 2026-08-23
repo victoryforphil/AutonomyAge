@@ -5,8 +5,9 @@ key: repo-index
 branch: vfp/agent/docs/repo-index
 pr: https://github.com/victoryforphil/AutonomyAge/pull/32
 desc: Index victoryforphil/AndreasLabs repos and document the docs/agents/ convention.
-status: PR open
-last_updated: 2026-08-22
+status: done
+update: Merged — repo index + docs skill note live on main.
+last_updated: 2026-08-23
 ---
 
 ## Context
