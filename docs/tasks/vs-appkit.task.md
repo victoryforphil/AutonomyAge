@@ -5,7 +5,8 @@ key: vs-appkit
 branch: vfp/agent/plan/vs-appkit
 pr: https://github.com/victoryforphil/AutonomyAge/pull/40
 desc: Port an egui desktop app helper/component framework into a vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
