@@ -5,7 +5,8 @@ key: victory-dir
 branch: vfp/agent/plan/victory-dir
 pr: https://github.com/victoryforphil/AutonomyAge/pull/37
 desc: Port a generic directory locator utility into a vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
