@@ -1,5 +1,8 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
+// NOTE: `bincode` dep is set to 2.0.1 (latest working) because 3.0.0 is a
+// broken placeholder (compile error referencing xkcd 2347). This `de` import is
+// currently unused; revisit if bincode is actually needed. See OPEN_RISKS.md.
 use bincode::de;
 use log::{debug, info, trace, warn};
 use time::BrokerTime;
