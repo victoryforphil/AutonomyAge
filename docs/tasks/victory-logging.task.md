@@ -5,7 +5,8 @@ key: victory-logging
 branch: vfp/agent/plan/victory-logging
 pr: https://github.com/victoryforphil/AutonomyAge/pull/36
 desc: Port a reusable logging/tracing setup helper into a vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
