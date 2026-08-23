@@ -5,93 +5,71 @@ on:
     branches:
       - main
   pull_request:
+
+concurrency:
+  group: rust-ci-${{ github.ref }}
+  cancel-in-progress: true
+
 env:
   CARGO_TERM_COLOR: always
-<<<<<<< HEAD
 
 jobs:
-  build:
-=======
-permissions:
-  contents: read
-  actions: read
-  checks: write
-jobs:
-  build:
-    defaults:
-      run:
-        working-directory: ./victory-time-rs
->>>>>>> victory-time/main
+  # Discover every workspace crate and emit a dynamic matrix entry per crate.
+  # Using `cargo metadata` keeps this resilient to crate (re)naming / moves.
+  crates:
     runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.matrix.outputs.matrix }}
     steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/install-action@nextest
-      - uses: actions/checkout@v4
-      - name: Install Rust
-        run: rustup update stable
-      - name: Build
-        run: cargo build --verbose
-      - name: Run tests
-<<<<<<< HEAD
-        run: cargo nextest run --verbose
-  coverage:
-    runs-on: ubuntu-latest
-=======
-        run: cargo nextest run --profile ci
-      - name: Test Report
-        uses: dorny/test-reporter@v1
-        if: success() || failure()    # run this step even if previous step failed
-        with:
-          name: JEST Tests            # Name of the check run which will be created
-          path: victory-time-rs/target/nextest/ci/junit.xml
-          reporter: jest-junit       # Format of test results
-
-  coverage:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./victory-time-rs
->>>>>>> victory-time/main
-    steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/install-action@nextest
-      - uses: actions/checkout@v4
-      - name: Install Rust
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - name: Discover workspace crates
+        id: matrix
+        shell: bash
         run: |
-          rustup update nightly
-      - name: Install cargo-llvm-cov
-        run: rustup component add llvm-tools-preview --toolchain nightly
+          matrix="$(cargo metadata --no-deps --locked --format-version 1 \
+            | jq -c '[.packages[] | select(.targets | map(.kind) | flatten | index("lib") or index("bin")) | .name]')"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+          echo "Discovered crates: $matrix"
+
+  # One job per crate: build then test with cargo-nextest.
+  build-test:
+    needs: crates
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        package: ${{ fromJson(needs.crates.outputs.matrix) }}
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: taiki-e/install-action@nextest
+      - name: Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          key: ${{ matrix.package }}
+      - name: Build
+        run: cargo build -p "${{ matrix.package }}" --locked
+      - name: Test
+        run: cargo nextest run -p "${{ matrix.package }}" --locked
+
+  # Workspace-wide coverage. Best effort: never blocks the run going green.
+  coverage:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@nightly
+        with:
+          components: llvm-tools-preview
       - uses: taiki-e/install-action@cargo-llvm-cov
       - uses: taiki-e/install-action@nextest
       - name: Collect coverage data (including doctests)
         run: |
-          cargo llvm-cov --no-report nextest --ignore-filename-regex calloop-0.10.6/*
-          cargo llvm-cov report --lcov --output-path lcov.info  --ignore-filename-regex calloop-0.10.6/*
-<<<<<<< HEAD
-      #- name: Upload coverage
-      #  uses: codecov/codecov-action@v1
-      #  with:
-      #    token: ${{ secrets.CODECOV_TOKEN }}
-      #    fail_ci_if_error: false
-=======
+          cargo llvm-cov --no-report nextest
+          cargo llvm-cov report --lcov --output-path lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
->>>>>>> victory-time/main
-#  docs:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: taiki-e/install-action@nextest
-#      - uses: actions/checkout@v4
-#      - name: Install Rust
-#        run: rustup update stable
-#      - name: Build docs
-#        run: cargo doc --verbose --all-features --workspace
-#      - name: Deploy docs
-#        uses: peaceiris/actions-gh-pages@v3
-#        with:
-#            github_token: ${{ secrets.GITHUB_TOKEN }}
-#            publish_dir: ./target/doc
