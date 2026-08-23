@@ -14,7 +14,7 @@ path = "bin/broker_tcp_client.rs"
 [dependencies]
 
 anyhow = "1.0.86"
-log = "0.4.22"
+log = "0.4.34"
 thiserror = "1.0.63"
 tracing = "0.1.40"
 

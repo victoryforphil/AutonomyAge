@@ -9,7 +9,7 @@ edition = "2021"
 serde = { version = "1.0.229", features = ["derive", "rc"] }
 anyhow = "1.0.86"
 arrow = "52.2.0"
-log = "0.4.22"
+log = "0.4.34"
 thiserror = "1.0.63"
 tracing = "0.1.40"
 vs-wtf = { path = "../vs-wtf" }
