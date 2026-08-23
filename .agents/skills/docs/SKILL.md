@@ -50,6 +50,29 @@ status: todo | done | active | deprecated
 
 Idea tickets live in `docs/ideas/` as `{doc_name}.idea.md`. They are short notes, not full specs: a one-line purpose, sourcing notes (e.g. "import from project-firefly / AndreasLabs"), and a bullet feature list. When an idea becomes real work, promote it to a `plan` or `design` doc and flip its `status` to `done`.
 
+## Agent / cross-repo research notes (`docs/agents/`)
+
+When scoping an idea/plan that says "import from VictoryForPhil / AndreasLabs" or
+otherwise needs cross-repo research, record the survey in `docs/agents/`:
+
+- `docs/agents/repo-index.md` — the index of surveyed repos and what each contains
+  that's relevant to the `vs-*` crates. Add a repo/note row here whenever an agent
+  maps more of the org.
+- `docs/agents/{topic}-research.md` — optionally, a per-topic research note with
+  the source implementations found and which one is the "best version to port".
+
+Conventions for these notes:
+
+- Use `type: design` / `status: active` frontmatter (they're living reference docs,
+  not ideas or one-shot plans).
+- Name the method (cloned where, `gh search code` symbols searched, date).
+- For each repo say: `repo: <name> | language | what it has that's relevant`,
+  and flag empty/stub repos so nobody re-surveys them.
+- Note recency (git log dates) and coupling to `wingman-*` / `victory-*` (now
+  `vs-*`) so the "best version to port" is a defensible choice.
+- Note what was **not** found / what got you stuck — the survey is useful even when
+  there are no strong leads.
+
 ## Generic rules
 
 - Lead with the decision or purpose. Prefer short sections and bullets.
