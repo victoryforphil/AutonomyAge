@@ -411,7 +411,8 @@ where
 
 #[cfg(test)]
 mod broker_tests {
-    use std::sync::{Arc, Mutex};
+    use std::sync::Arc;
+    use tokio::sync::Mutex;
 
     use victory_data_store::topics::TopicKey;
     use victory_wtf::Timespan;
@@ -429,8 +430,8 @@ mod broker_tests {
     /// 2. Add an adapter to the broker
     /// 3. Add a task to the adapter
 
-    #[test]
-    fn test_tick() {
+    #[tokio::test]
+    async fn test_tick() {
         let mut broker = Broker::new(MockBrokerCommander::new());
         let mut adapter = MockBrokerAdapter::new();
 
@@ -451,11 +452,11 @@ mod broker_tests {
         adapter.new_tasks.push(task_b);
 
         broker.adapters.insert(0, Arc::new(Mutex::new(adapter)));
-        broker.tick(Timespan::new_secs(0.1)).unwrap();
+        broker.tick(Timespan::new_secs(0.1)).await.unwrap();
         assert_eq!(broker.task_states[&0].status, BrokerTaskStatus::Completed);
         assert_eq!(broker.task_states[&1].status, BrokerTaskStatus::Idle);
 
-        broker.tick(Timespan::new_secs(0.1)).unwrap();
+        broker.tick(Timespan::new_secs(0.1)).await.unwrap();
         assert_eq!(broker.task_states[&0].status, BrokerTaskStatus::Completed);
         assert_eq!(broker.task_states[&1].status, BrokerTaskStatus::Completed);
     }

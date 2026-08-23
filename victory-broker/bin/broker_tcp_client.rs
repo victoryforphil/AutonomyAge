@@ -41,7 +41,7 @@ async fn main() {
 
     let mut node = BrokerNode::new(
         BrokerNodeInfo::new("Broker Test TCP Client"),
-        Arc::new(Mutex::new(client)),
+        Arc::new(tokio::sync::Mutex::new(client)),
     );
     node.add_task(Arc::new(Mutex::new(task_a))).unwrap();
     node.add_task(Arc::new(Mutex::new(task_print))).unwrap();

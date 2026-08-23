@@ -38,11 +38,14 @@ mod tests {
         // Launch broker thread
         let broker_thread = std::thread::spawn(move || {
             let start = std::time::Instant::now();
+            let runtime = tokio::runtime::Runtime::new().unwrap();
 
             while start.elapsed().as_secs() < 2 {
                 {
                     let mut broker = broker.lock().unwrap();
-                    broker.tick(Timespan::new_ms(50.0)).unwrap();
+                    runtime
+                        .block_on(broker.tick(Timespan::new_ms(50.0)))
+                        .unwrap();
                 }
                 std::thread::sleep(std::time::Duration::from_millis(50));
             }

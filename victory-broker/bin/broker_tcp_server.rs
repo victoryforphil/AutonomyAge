@@ -34,7 +34,7 @@ async fn main() {
 
     let server: TcpBrokerServer = TcpBrokerServer::new(&bind_addr).await.unwrap();
     let mut broker = Broker::new(LinearBrokerCommander::new());
-    broker.add_adapter(Arc::new(Mutex::new(server)));
+    broker.add_adapter(Arc::new(tokio::sync::Mutex::new(server)));
     // Create channel adapter pair for local node
     let (adapter_a, adapter_b) =
         victory_broker::adapters::channel::ChannelBrokerAdapter::new_pair();
@@ -65,7 +65,7 @@ async fn main() {
         }
     });
     loop {
-        match broker.tick(Timespan::new_ms(5.0)) {
+        match broker.tick(Timespan::new_ms(5.0)).await {
             Ok(_) => (),
             Err(e) => {
                 warn!("Broker // Error: {:?}", e);
