@@ -5,7 +5,8 @@ key: quadlink
 branch: vfp/agent/plan/quadlink
 pr: https://github.com/victoryforphil/AutonomyAge/pull/35
 desc: Port a reusable MAVLink communication & command framework into a vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
