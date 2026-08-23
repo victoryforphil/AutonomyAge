@@ -7,55 +7,24 @@ on:
   pull_request:
 env:
   CARGO_TERM_COLOR: always
-<<<<<<< HEAD
 
 jobs:
   build:
-=======
-permissions:
-  contents: read
-  actions: read
-  checks: write
-jobs:
-  build:
-    defaults:
-      run:
-        working-directory: ./victory-time-rs
->>>>>>> victory-time/main
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/install-action@nextest
       - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@nextest
       - name: Install Rust
         run: rustup update stable
       - name: Build
         run: cargo build --verbose
       - name: Run tests
-<<<<<<< HEAD
         run: cargo nextest run --verbose
   coverage:
     runs-on: ubuntu-latest
-=======
-        run: cargo nextest run --profile ci
-      - name: Test Report
-        uses: dorny/test-reporter@v1
-        if: success() || failure()    # run this step even if previous step failed
-        with:
-          name: JEST Tests            # Name of the check run which will be created
-          path: victory-time-rs/target/nextest/ci/junit.xml
-          reporter: jest-junit       # Format of test results
-
-  coverage:
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ./victory-time-rs
->>>>>>> victory-time/main
     steps:
-      - uses: actions/checkout@v3
-      - uses: taiki-e/install-action@nextest
       - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@nextest
       - name: Install Rust
         run: |
           rustup update nightly
@@ -65,33 +34,10 @@ jobs:
       - uses: taiki-e/install-action@nextest
       - name: Collect coverage data (including doctests)
         run: |
-          cargo llvm-cov --no-report nextest --ignore-filename-regex calloop-0.10.6/*
-          cargo llvm-cov report --lcov --output-path lcov.info  --ignore-filename-regex calloop-0.10.6/*
-<<<<<<< HEAD
-      #- name: Upload coverage
-      #  uses: codecov/codecov-action@v1
-      #  with:
-      #    token: ${{ secrets.CODECOV_TOKEN }}
-      #    fail_ci_if_error: false
-=======
+          cargo llvm-cov --no-report nextest
+          cargo llvm-cov report --lcov --output-path lcov.info
       - name: Upload coverage
         uses: codecov/codecov-action@v1
         with:
           token: ${{ secrets.CODECOV_TOKEN }}
           fail_ci_if_error: false
->>>>>>> victory-time/main
-#  docs:
-#    runs-on: ubuntu-latest
-#    steps:
-#      - uses: actions/checkout@v3
-#      - uses: taiki-e/install-action@nextest
-#      - uses: actions/checkout@v4
-#      - name: Install Rust
-#        run: rustup update stable
-#      - name: Build docs
-#        run: cargo doc --verbose --all-features --workspace
-#      - name: Deploy docs
-#        uses: peaceiris/actions-gh-pages@v3
-#        with:
-#            github_token: ${{ secrets.GITHUB_TOKEN }}
-#            publish_dir: ./target/doc
