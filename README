@@ -1,13 +1,44 @@
-#Victory Suite
+# Victory Suite (`vs-*`)
 
-Making robots badly in rust. 
+Making robots badly in rust.
 
-# Tools / Crates
+This is a Cargo workspace. All first-party crates live under `libs/` and share the
+`vs-` prefix (short for **Victory Suite**).
 
-## victory-broker
+## Structure
 
-## victory-datastore
+```
+libs/
+  vs-wtf        Core time primitives (Timepoint, Timespan, Timecode)
+  vs-data-store  In-memory datastore + bucketed primitives + topics + serde
+  vs-broker     Broker / commander node system on top of the datastore
+```
 
-## victory-wtf
+## Crates
 
-## victory-commander
+### vs-wtf
+The time library. Provides `Timepoint`, `Timespan`, and `Timecode` primitives with
+lossless conversions between unit scales.
+
+### vs-data-store
+The datastore. Bucketed, typed primitives with a topic/key model, retention,
+serialization (`rmp-serde`, `bincode`), and a TCP listener. Exposes a CLI (`main`)
+and benchmarks (`divan`).
+
+### vs-broker
+The broker. Builds on `vs-data-store` + `vs-wtf` to provide a broker node,
+commanders, task definitions, and TCP/channel adapters. Ships two binaries:
+`broker_tcp_server` and `broker_tcp_client`.
+
+## Building
+
+```sh
+cargo build
+cargo test
+```
+
+## Version bumps / dependency updates
+
+External dependency version bumps are applied crate-by-crate. Changes stay
+minimal (version string only where possible) and any behavioural risk is called
+out in code comments plus `OPEN_RISKS.md`.
