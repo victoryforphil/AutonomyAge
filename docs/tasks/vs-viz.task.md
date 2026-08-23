@@ -5,7 +5,8 @@ key: vs-viz
 branch: vfp/agent/plan/vs-viz
 pr: https://github.com/victoryforphil/AutonomyAge/pull/38
 desc: Port a backend-agnostic visualization utilities crate starting with Rerun (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
