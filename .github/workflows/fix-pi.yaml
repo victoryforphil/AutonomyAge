@@ -1,0 +1,73 @@
+name: Fix (pi)
+
+# Reply to a "please fix ..." comment on the PR with a suggested fix, powered by pi.
+# Trigger: a non-bot comment on the PR that mentions the bot and the word "fix".
+# See .agents/reviewer/README.md.
+
+on:
+  issue_comment:
+    types: [created]
+
+concurrency:
+  group: fix-pi-${{ github.event.issue.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+
+env:
+  OPENROUTER_MODEL: ${{ secrets.OPENROUTER_MODEL || 'deepseek/deepseek-v4-flash' }}
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    if: >
+      github.event.issue.pull_request &&
+      github.event.comment.user.type != 'Bot' &&
+      contains(github.event.comment.body, 'review-bot') &&
+      contains(github.event.comment.body, 'fix')
+    steps:
+      - name: Resolve PR head/base
+        id: pr
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          JSON=$(gh pr view "${{ github.event.issue.number }}" --json baseRefOid,headRefOid)
+          echo "base=$(echo "$JSON" | jq -r .baseRefOid)" >> "$GITHUB_OUTPUT"
+          echo "head=$(echo "$JSON" | jq -r .headRefOid)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+          ref: refs/pull/${{ github.event.issue.number }}/merge
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install pi (coding agent)
+        run: npm install -g @earendil-works/pi-coding-agent@0.84.2
+
+      - name: Generate & post fix
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
+          # Passed via env (never shell-interpolated directly) to avoid command injection.
+          COMMENT_BODY: ${{ github.event.comment.body }}
+        run: |
+          python3 .github/scripts/fix_bot.py \
+            --repo "$GITHUB_REPOSITORY" \
+            --pr "${{ github.event.issue.number }}" \
+            --base "${{ steps.pr.outputs.base }}" \
+            --head "${{ steps.pr.outputs.head }}" \
+            --harness pi \
+            --rules REVIEW.md \
+            --reviewer .agents/reviewer/SKILL.md \
+            --task-note "docs/tasks/review-bot-pi.task.md" \
+            --instruction "$COMMENT_BODY"
