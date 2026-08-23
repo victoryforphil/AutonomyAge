@@ -5,7 +5,8 @@ key: valley
 branch: vfp/agent/plan/valley
 pr: https://github.com/victoryforphil/AutonomyAge/pull/34
 desc: Port project-firefly's validation framework into a reusable vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
