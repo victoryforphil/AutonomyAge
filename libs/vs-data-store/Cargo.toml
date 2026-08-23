@@ -35,7 +35,7 @@ divan = "0.1.14"
 
 [dependencies.tracy]
 package = "tracy_full"
-version = "1.10.0"
+version = "1.13.0"
 features = ["enable"]
 
 
