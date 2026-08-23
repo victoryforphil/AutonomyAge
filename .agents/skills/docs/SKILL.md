@@ -73,6 +73,24 @@ Conventions for these notes:
 - Note what was **not** found / what got you stuck — the survey is useful even when
   there are no strong leads.
 
+## Live task tracking (`docs/tasks/`)
+
+Each unit of work (usually one per branch/PR) gets a live note at
+`docs/tasks/{key}.task.md`. It keeps current context, todos, state, risks, where a
+human is needed, followups, open questions, and links to handoff/plan/source docs —
+so you (and agents) can check in on how a task/branch/PR is going without re-reading
+the whole PR.
+
+- The convention/frontmatter/body sections live in the **task-tracking skill** at
+  [`../task-tracking/SKILL.md`](../task-tracking/SKILL.md).
+- `{key}` matches the branch key; frontmatter carries `branch`, `pr`, `desc`,
+  `status`, `update`, `last_updated`. `status` uses the **same lifecycle enum**
+  (see above), and `update` holds the one-line human-readable progress.
+- `docs/tasks/` is the **live** state; `docs/plan/` and `docs/agents/` hold the
+  spec/research detail. Link, don't duplicate.
+- Surface the task note on the PR (embed in the description or a comment) so it's
+  readable without opening the file; keep it in sync.
+
 ## Generic rules
 
 - Lead with the decision or purpose. Prefer short sections and bullets.
