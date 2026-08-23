@@ -5,7 +5,8 @@ key: vs-renderkit
 branch: vfp/agent/plan/vs-renderkit
 pr: https://github.com/victoryforphil/AutonomyAge/pull/39
 desc: Port a composable wgpu 3D rendering kit into a vs-* crate (plan).
-status: PR open — plan drafted (thin lead)
+status: active
+update: PR open — plan drafted (thin lead)
 last_updated: 2026-08-22
 ---
 
