@@ -5,7 +5,8 @@ key: task-tracking
 branch: vfp/agent/docs/task-tracking
 pr: https://github.com/victoryforphil/AutonomyAge/pull/41
 desc: Add the task-tracking skill (docs/tasks/{key}.task.md) and link it from the docs skill.
-status: PR open — skill + self task note added
+status: active
+update: PR open — skill + self task note added
 last_updated: 2026-08-22
 ---
 

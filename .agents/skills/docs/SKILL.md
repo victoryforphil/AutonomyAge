@@ -84,9 +84,12 @@ the whole PR.
 - The convention/frontmatter/body sections live in the **task-tracking skill** at
   [`../task-tracking/SKILL.md`](../task-tracking/SKILL.md).
 - `{key}` matches the branch key; frontmatter carries `branch`, `pr`, `desc`,
-  `status`, `last_updated`.
+  `status`, `update`, `last_updated`. `status` uses the **same lifecycle enum**
+  (see above), and `update` holds the one-line human-readable progress.
 - `docs/tasks/` is the **live** state; `docs/plan/` and `docs/agents/` hold the
   spec/research detail. Link, don't duplicate.
+- Surface the task note on the PR (embed in the description or a comment) so it's
+  readable without opening the file; keep it in sync.
 
 ## Generic rules
 
