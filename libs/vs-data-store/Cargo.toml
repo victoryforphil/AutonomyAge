@@ -6,7 +6,7 @@ edition = "2021"
 
 
 [dependencies]
-serde = { version = "1.0.210", features = ["derive", "rc"] }
+serde = { version = "1.0.229", features = ["derive", "rc"] }
 anyhow = "1.0.86"
 arrow = "52.2.0"
 log = "0.4.22"
