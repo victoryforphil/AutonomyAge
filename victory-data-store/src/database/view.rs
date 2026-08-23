@@ -7,7 +7,7 @@ use crate::{
     topics::{TopicKey, TopicKeyHandle, TopicKeyProvider},
 };
 
-use log::warn;
+use log::{debug, warn};
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use victory_wtf::Timepoint;
 use std::collections::HashMap;
@@ -99,6 +99,26 @@ impl DataView {
         let buckets = datastore.get_buckets_matching_cached(topic)?;
         for bucket in buckets {
             let bucket = bucket.read().unwrap();
+            for datapoint in bucket.get_data_points_after(time) {
+                let key = datapoint.topic.key().clone();
+                self.maps.insert(key, datapoint.clone());
+            }
+        }
+        Ok(self)
+    }
+
+    pub fn add_query_after_per(
+        mut self,
+        datastore: &mut Datastore,
+        topic: &TopicKey,
+        fallback_time: Timepoint,
+        time_per_topic: &HashMap<TopicKeyHandle, Timepoint>,
+    ) -> Result<DataView, DatastoreError> {
+        let buckets = datastore.get_buckets_matching_cached(topic)?;
+        for bucket in buckets {
+            let bucket = bucket.read().unwrap();
+            let time = time_per_topic.get(&bucket.topic.handle()).unwrap_or(&fallback_time);
+            
             for datapoint in bucket.get_data_points_after(time) {
                 let key = datapoint.topic.key().clone();
                 self.maps.insert(key, datapoint.clone());

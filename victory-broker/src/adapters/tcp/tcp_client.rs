@@ -103,11 +103,12 @@ impl BrokerAdapter for TcpBrokerClient {
 
     fn recv_response(&mut self, _task: &BrokerTaskConfig) -> Result<(), BrokerAdapterError> {
         self.process_incoming_messages();
-        if let Some(_task_config) = self.response_queue.pop() {
+        if let Some(pos) = self.response_queue.iter().position(|task_config| task_config.task_id == _task.task_id) {
+            self.response_queue.remove(pos);
             Ok(())
-        } else {
-            Err(BrokerAdapterError::WaitingForTaskResponse)
-        }
+            } else {
+                return Err(BrokerAdapterError::WaitingForTaskResponse)
+        } 
     }
 
     fn recv_execute(&mut self) -> Result<Vec<(BrokerTaskConfig, BrokerTime)>, BrokerAdapterError> {

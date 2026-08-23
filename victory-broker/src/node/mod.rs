@@ -103,13 +103,16 @@ impl BrokerNode {
 
             // 4. Send the results back to the adapter using send outputs
             let outputs = results.get_all_datapoints();
+            let mut total_sent = 0;
             for chunk in outputs.chunks(32) {
-                debug!(
-                    "Node {:?} - Sending {:?} outputs for task {:?}",
-                    self.info.name, chunk.len(), task_config.name
-                );
+                total_sent += chunk.len();
+           
                 adapter.send_outputs(&chunk.to_vec())?;
             }
+            debug!(
+                "Node {:?} - Sent {:?} outputs for task {:?}",
+                self.info.name, total_sent, task_config.name
+            );
 
             // 5. Send the response back to the adapter using send response
             adapter.send_response(task_config)?;

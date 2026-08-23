@@ -158,8 +158,9 @@ impl BrokerAdapter for TcpBrokerServer {
 
     fn recv_response(&mut self, _task: &BrokerTaskConfig) -> Result<(), BrokerAdapterError> {
         self.process_incoming_messages();
-
-        if let Some(_) = self.response_queue.pop() {
+        // Check response queue for any matching tasks (by id) then remove said responses, leave remaining responses in queue
+        if let Some(pos) = self.response_queue.iter().position(|task_config| task_config.task_id == _task.task_id) {
+            self.response_queue.remove(pos);
             Ok(())
         } else {
             Err(BrokerAdapterError::WaitingForTaskResponse)

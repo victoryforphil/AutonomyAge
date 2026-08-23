@@ -1,6 +1,7 @@
 use std::sync::mpsc::{channel, Receiver, Sender};
 use std::sync::Arc;
 
+use log::warn;
 use tokio::sync::Mutex;
 
 use crate::adapters::{BrokerAdapter, BrokerAdapterError};
@@ -121,7 +122,9 @@ impl BrokerAdapter for ChannelBrokerAdapter {
 
     fn recv_response(&mut self, _task: &BrokerTaskConfig) -> Result<(), BrokerAdapterError> {
         self.process_incoming_messages();
-        if let Some(task_config) = self.response_queue.pop() {
+        // Check response queue for any matching tasks (by id) then remove said responses, leave remaining responses in queue
+        if let Some(pos) = self.response_queue.iter().position(|task_config| task_config.task_id == _task.task_id) {
+            self.response_queue.remove(pos);
             Ok(())
         } else {
             Err(BrokerAdapterError::WaitingForTaskResponse)
@@ -133,17 +136,14 @@ impl BrokerAdapter for ChannelBrokerAdapter {
         Ok(self.execute_queue.drain(..).collect())
     }
 
-    fn send_response(
-        &mut self,
-        task: &BrokerTaskConfig
-    ) -> Result<(), BrokerAdapterError> {
+    fn send_response(&mut self, task: &BrokerTaskConfig) -> Result<(), BrokerAdapterError> {
         self.send_tx
             .send(ChannelMessage::TaskResponse(task.clone()))
             .map_err(|_| {
                 BrokerAdapterError::Generic(Box::new(ChannelBrokerError::ChannelSendError))
             })
     }
-    
+
     fn send_inputs(&mut self, inputs: &Vec<Datapoint>) -> Result<(), BrokerAdapterError> {
         self.send_tx
             .send(ChannelMessage::Inputs(inputs.clone()))
@@ -151,7 +151,7 @@ impl BrokerAdapter for ChannelBrokerAdapter {
                 BrokerAdapterError::Generic(Box::new(ChannelBrokerError::ChannelSendError))
             })
     }
-    
+
     fn recv_inputs(&mut self) -> Result<Vec<Datapoint>, BrokerAdapterError> {
         self.process_incoming_messages();
         Ok(self.inputs.drain(..).collect())
@@ -167,6 +167,10 @@ impl BrokerAdapter for ChannelBrokerAdapter {
 
     fn recv_outputs(&mut self) -> Result<Vec<Datapoint>, BrokerAdapterError> {
         self.process_incoming_messages();
-        Ok(self.outputs.drain(..).collect())
+        if self.outputs.len() > 0 {
+            Ok(self.outputs.drain(..).collect())
+        } else {
+            Err(BrokerAdapterError::NoPendingOutputs)
+        }
     }
 }

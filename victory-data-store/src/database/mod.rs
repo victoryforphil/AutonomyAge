@@ -59,25 +59,25 @@ impl Datastore {
         }
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     pub fn handle(self) -> DatastoreHandle {
         Arc::new(Mutex::new(self))
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     pub fn set_retention(&mut self, retention: RetentionPolicy) {
         self.retention = retention;
     }
 
-    #[instrument]
+    #[instrument(skip_all)]
     pub fn clear_query_cache(&mut self) {
-        self.query_cache.clear();
+       self.query_cache.clear();
     }
 
     #[instrument(skip_all)]
     pub fn create_bucket<T: TopicKeyProvider>(&mut self, topic: &T) {
         if !self.buckets.contains_key(&topic.handle()) {
-            let _span = debug_span!("creating_bucket").entered();
+         //   let _span = debug_span!("creating_bucket").entered();
             let bucket = Bucket::new(topic);
             bucket
                 .write()

@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use serde::{Deserialize, Serialize};
+use victory_data_store::topics::TopicKeyHandle;
 use victory_wtf::Timepoint;
 
 use super::BrokerTaskID;
@@ -17,6 +20,7 @@ pub struct BrokerTaskState {
     pub task_id: BrokerTaskID,
     pub status: BrokerTaskStatus,
     pub last_execution_time: Option<Timepoint>,
+    pub last_topic_update: HashMap<TopicKeyHandle, Timepoint>,
 }
 
 impl BrokerTaskState {
@@ -25,6 +29,7 @@ impl BrokerTaskState {
             task_id,
             status: BrokerTaskStatus::Idle,
             last_execution_time: None,
+            last_topic_update: HashMap::new(),
         }
     }
 
@@ -34,5 +39,10 @@ impl BrokerTaskState {
 
     pub fn set_last_execution_time(&mut self, time: Timepoint) {
         self.last_execution_time = Some(time);
+    }
+
+    pub fn topic_updated(&mut self, topic: &TopicKeyHandle) {
+        self.last_topic_update
+            .insert(topic.clone(), self.last_execution_time.clone().unwrap());
     }
 }

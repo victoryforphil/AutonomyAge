@@ -25,6 +25,7 @@ pub struct Bucket {
 pub type BucketHandle = Arc<RwLock<Bucket>>;
 
 impl Bucket {
+    #[tracing::instrument(skip_all)]
     pub fn new<T: TopicKeyProvider>(topic: &T) -> BucketHandle {
         Arc::new(RwLock::new(Bucket {
             topic: topic.handle(),

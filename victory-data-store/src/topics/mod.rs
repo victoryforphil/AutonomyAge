@@ -26,11 +26,12 @@ impl TopicKeySection {
     pub fn new_existing(id: TopicIDType, display_name: String) -> TopicKeySection {
         TopicKeySection { id, display_name }
     }
-
+    #[instrument(skip_all)]
     pub fn handle(&self) -> TopicKeySectionHandle {
         Arc::new(self.clone())
     }
 
+    #[instrument(skip_all)]
     pub fn into_handle(self) -> TopicKeySectionHandle {
         Arc::new(self)
     }
@@ -52,14 +53,14 @@ pub struct TopicKey {
 
 // Implement string formatting / printing (dispaly name)
 impl std::fmt::Display for TopicKey {
-    #[instrument(skip_all, name = "TopicKey::fmt")]
+    #[instrument(skip_all, name = "TopicKey::fmt_display")]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.display_name())
     }
 }
 
 impl std::fmt::Debug for TopicKey {
-    #[instrument(skip_all, name = "TopicKey::fmt")]
+    #[instrument(skip_all, name = "TopicKey::fmt_debug")]
     fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
         write!(f, "{}", self.display_name())
     }

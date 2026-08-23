@@ -1,9 +1,11 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
+use bincode::de;
 use log::{debug, info, trace, warn};
 use time::BrokerTime;
+use tokio::sync::Mutex;
 use tracing::instrument;
-use victory_data_store::database::{view::DataView, Datastore, DatastoreHandle};
+use victory_data_store::{database::{view::DataView, Datastore, DatastoreHandle}, datapoints::Datapoint, topics::{TopicKeyHandle, TopicKeyProvider}};
 use victory_wtf::{Timepoint, Timespan};
 
 use crate::{
@@ -65,7 +67,7 @@ where
     #[instrument(skip_all)]
     pub async fn tick(&mut self, delta_time: Timespan) -> Result<(), BrokerError> {
                         
-     
+
         
         let span = tracing::span!(tracing::Level::TRACE, "broker_tick");
         let _enter = span.enter();
@@ -84,7 +86,7 @@ where
 
         if !next_tasks.is_empty() {
             debug!(
-                "Broker // Next tasks: {:?}",
+                "Broker // Next tasks: {:?} ",
                 next_tasks.iter().map(|t| t.name.clone()).collect::<Vec<_>>()
             );
         } else {
@@ -122,11 +124,15 @@ where
             // Set initial state
             let task_state = self.task_states.get_mut(&task_id).unwrap();
             let last_execution_time = task_state.last_execution_time.clone();
-            task_state.set_last_execution_time(self.timing.time_monotonic.clone());
+           
             task_state.set_status(BrokerTaskStatus::Executing);
             
             let broker_time = self.timing.clone();
 
+            let mut inputs_to_update = Vec::<Datapoint>::new();
+            let inputs_to_update_handle = Arc::new(Mutex::new(inputs_to_update));
+
+            let inputs_to_update_handle_clone = inputs_to_update_handle.clone();
             // Spawn task
             let handle = tokio::spawn(async move {
                 debug!(
@@ -136,8 +142,15 @@ where
 
                 let mut adapter = adapter.lock().await;
 
+                let _inputs_span = tracing::span!(tracing::Level::TRACE, "inputs_send");
+                let _inputs_enter = _inputs_span.enter();
                 // Send inputs in chunks
                 let input_datapoints = inputs.get_all_datapoints();
+
+
+                let mut inputs_to_update = inputs_to_update_handle_clone.lock().await;
+              
+
                 for chunk in input_datapoints.chunks(32) {
                
                     debug!(
@@ -151,6 +164,7 @@ where
                     }
                 }
 
+                drop(_inputs_enter);
                 // Execute the task
                // Override last execution time with task execution time
                 let mut new_timer = broker_time.clone();
@@ -159,6 +173,10 @@ where
                     warn!("Broker // Failed to execute task {:?}: {:?}", task_config.name, e);
                     return Err(BrokerError::TaskExecutionFailed(task_config));
                 }
+
+
+                inputs_to_update.extend(input_datapoints);
+            
 
                 // Handle outputs and response based on blocking mode
                 if task_config.flags.contains(&BrokerCommanderFlags::NonBlocking) {
@@ -182,57 +200,70 @@ where
                         } else {
                             break;
                         }
+                    
                     }
+
+                    if let Ok(e) = adapter.recv_response(&task_config) {
+                        debug!("Broker // Received non-blocking response for {:#?}: {:#?}", task_config.name, e);
+                    }
+                  
                     Ok(())
                 } else {
                     let start = tokio::time::Instant::now();
-                    let timeout = tokio::time::Duration::from_millis(250);
+                    let timeout = tokio::time::Duration::from_millis(500);
 
                     // Continuously check for outputs while waiting for response
                     let recv_outputs_response_span = tracing::span!(tracing::Level::TRACE, "recv_outputs_response", task_name = %task_config.name);
                     let _recv_outputs_response_enter = recv_outputs_response_span.enter();
                     while start.elapsed() < timeout {
-                      
                         // Check for outputs and response in a single loop
-                        if let Ok( outputs) = adapter.recv_outputs() {
+                        while let Ok(outputs) = adapter.recv_outputs() {
                             if outputs.len() > 0 {
-                                debug!(
-                                    "Broker // Received {:?} outputs for task {:?}",
-                                    outputs.len(),
-                                    task_config.name
-                                );
-                               
+ 
+                                
                                 datastore.lock().unwrap().add_datapoints(outputs);
+                            } else {
+                                break;
                             }
                         }
 
                         match adapter.recv_response(&task_config) {
-                            Ok(_) => {
-                                debug!("Broker // Received response for {:?}", task_config.name);
+                            Ok(response) => {
+                                // Verify response is correct
+                                debug!("Broker // Received response for {:#?}", task_config.name);
                                 return Ok(());
                             }
                             Err(BrokerAdapterError::WaitingForTaskResponse) => {
-                               
+                                // sleep for 1ms to prevent busy loop
+                                tokio::time::sleep(Duration::from_millis(1)).await;
                                 continue;
                             }
                             Err(e) => {
-                                warn!("Broker // Error receiving response for {:?}: {:?}", task_config.name, e);
+                                warn!("Broker // Error receiving response for {:#?}: {:#?}", task_config.name, e);
                                 return Err(BrokerError::TaskExecutionFailed(task_config));
                             }
                         }
                     }
 
                     warn!(
-                        "Broker // Task {:?} timed out waiting for response",
+                        "Broker // Task {:#?} timed out waiting for response",
                         task_config.name
                     );
                     Err(BrokerError::TaskTimeout(task_config))
                 }
             });
-
+            let inputs_to_update =inputs_to_update_handle.lock().await;
+          
+           
+            for datapoint in inputs_to_update.iter() {
+                let topic = &datapoint.topic.handle();
+                task_state.topic_updated(topic);
+            }
+            task_state.set_last_execution_time(self.timing.time_monotonic.clone());
+          
             join_handles.push((task_id, handle));
         }
-
+        self.timing.update(delta_time);
         // Wait for all tasks to complete
         let wait_for_tasks_span = tracing::span!(tracing::Level::TRACE, "wait_for_tasks");
         let _wait_for_tasks_enter = wait_for_tasks_span.enter();
@@ -267,8 +298,11 @@ where
                     ))));
                 }
             }
+           
+        
         }
-        self.timing.update(delta_time);
+
+       
         Ok(())
     }
 
@@ -346,10 +380,10 @@ where
         let subscriptions = &task.subscriptions;
         let mut inputs = DataView::new();
         let last_execution = state.last_execution_time.clone().unwrap_or(Timepoint::zero());
-        
         for subscription in subscriptions {
             match subscription.mode {
                 SubscriptionMode::Latest => {
+               
                     inputs = inputs
                         .add_query(
                             &mut self.datastore.lock().unwrap(),
@@ -358,17 +392,16 @@ where
                         .unwrap();
                 }
                 SubscriptionMode::NewValues => {
-                    trace!(
-                        "Broker // Adding new values subscription for {:?} after {:.3?}s",
-                        task.name, last_execution.secs()
-                    );
+                    
                     inputs = inputs
-                        .add_query_after(
+                        .add_query_after_per(
                             &mut self.datastore.lock().unwrap(),
                             &subscription.topic_query,
-                            &last_execution,
+                            last_execution.clone(),
+                            &self.task_states[&task.task_id].last_topic_update,
                         )
                         .unwrap();
+
                 }
             }
         }
