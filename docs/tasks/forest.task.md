@@ -5,7 +5,8 @@ key: forest
 branch: vfp/agent/plan/forest
 pr: https://github.com/victoryforphil/AutonomyAge/pull/33
 desc: Port project-firefly's file-driven scenario runner into a reusable vs-* crate (plan).
-status: PR open — plan drafted
+status: active
+update: PR open — plan drafted
 last_updated: 2026-08-22
 ---
 
