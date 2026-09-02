@@ -6,7 +6,7 @@ branch: vfp/agent/feature/review-bot-pi
 pr: https://github.com/victoryforphil/AutonomyAge/pull/45
 desc: Build a Greptile-like PR review GitHub Action powered by pi + OpenRouter + DeepSeek V4 Flash.
 status: active
-update: Pi hardening complete — trusted-base workflow, read-only agent, and strict schema validation; pending PR checks.
+update: Pi hardening complete — required PR checks pass; ready to merge.
 last_updated: 2026-09-02
 ---
 
@@ -21,7 +21,7 @@ Reviewer configuration lives in `.agents/reviewer/` and rules in `REVIEW.md`.
 - [x] Add `.github/workflows/review-pi.yaml` (trusted-base Pi wiring)
 - [x] Harden trusted execution, tool access, and review schema validation
 - [x] Remove unsupported inline-thread resolution mutations
-- [ ] Merge after required PR checks pass
+- [x] Required PR checks pass; ready to merge
 
 ## State
 - Pi runs headlessly with `--mode json`, `--thinking off`, `--no-session`, and an
@@ -29,6 +29,7 @@ Reviewer configuration lives in `.agents/reviewer/` and rules in `REVIEW.md`.
 - The review and fix workflows run trusted base-revision scripts/configuration and
   fetch the PR head only to generate a diff.
 - Parser tests cover valid JSON plus required-schema and malformed-finding rejection.
+- Required GitHub checks pass: crates, coverage, and all three build-test jobs.
 
 ## Risks
 - Review quality remains model-dependent; tune rules from observed findings after merge.
