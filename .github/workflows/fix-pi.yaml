@@ -38,10 +38,15 @@ jobs:
           echo "base=$(echo "$JSON" | jq -r .baseRefOid)" >> "$GITHUB_OUTPUT"
           echo "head=$(echo "$JSON" | jq -r .headRefOid)" >> "$GITHUB_OUTPUT"
 
+      # Checkout only the trusted base revision; the head SHA is fetched solely so
+      # the bot can build a diff. Never execute code from the PR.
       - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-          ref: refs/pull/${{ github.event.issue.number }}/merge
+          ref: ${{ steps.pr.outputs.base }}
+
+      - name: Fetch PR head for diffing
+        run: git fetch --no-tags origin "${{ steps.pr.outputs.head }}"
 
       - uses: actions/setup-node@v4
         with:
@@ -55,8 +60,7 @@ jobs:
 
       - name: Generate & post fix
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GH_TOKEN: ${{ secrets.REVIEW_BOT_TOKEN || secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           OPENROUTER_API_KEY: ${{ secrets.OPENROUTER_API_KEY }}
           # Passed via env (never shell-interpolated directly) to avoid command injection.
           COMMENT_BODY: ${{ github.event.comment.body }}
@@ -66,7 +70,6 @@ jobs:
             --pr "${{ github.event.issue.number }}" \
             --base "${{ steps.pr.outputs.base }}" \
             --head "${{ steps.pr.outputs.head }}" \
-            --harness pi \
             --rules REVIEW.md \
             --reviewer .agents/reviewer/SKILL.md \
             --task-note "docs/tasks/review-bot-pi.task.md" \

@@ -11,18 +11,18 @@ updating PR comment (plus inline threads).
 | [`REVIEW.md`](../../REVIEW.md) | **The rules.** The repo's review rules / style checks the reviewer enforces. Edit this; the bot re-reads it each run. |
 | [`SKILL.md`](SKILL.md) | **The reviewer agent.** Its identity, operating rules, tools, and the **output JSON schema**. This is the reviewer's "skills and info". |
 | [`skills/`](skills/) | Optional extra reviewer lenses (one markdown skill per focus, e.g. `rust.md`, `ci.md`). The reviewer loads the ones it needs. |
-| [`../../.github/scripts/review_bot.py`](../../.github/scripts/review_bot.py) | The orchestration: builds the prompt, runs the agent harness, posts the comment(s). Harness-agnostic. |
-| `../../.github/workflows/review*.yaml` | The harness wiring (one per track: `opencode` / `pi`). |
+| [`../../.github/scripts/review_bot.py`](../../.github/scripts/review_bot.py) | The trusted orchestration: builds the prompt, runs pi, validates the response, and posts comments. |
+| `../../.github/workflows/review-pi.yaml` | The trusted-base GitHub Actions wiring. |
 
 ## How a review run works
 
-1. A `pull_request` event fires (`opened` / `synchronize` / `reopened`).
-2. The workflow checks out the PR head with full history and calls
-   `review_bot.py`.
-3. `review_bot.py` reads `REVIEW.md` + `SKILL.md` (and the task note if one exists),
-   builds the diff + context into a single prompt, and runs the chosen harness
-   (`opencode` or `pi`) against OpenRouter.
-4. The harness returns the JSON review. The bot parses it and:
+1. A `pull_request_target` event fires (`opened` / `synchronize` / `reopened`).
+2. The workflow checks out the trusted PR base revision, fetches the PR head only for
+   `git diff`, then calls `review_bot.py`. It never executes PR-controlled code.
+3. `review_bot.py` reads trusted `REVIEW.md` + `SKILL.md` (and the task note), builds
+   the diff + context into a single prompt, and runs pi against OpenRouter with only
+   read-only filesystem tools.
+4. Pi returns the JSON review. The bot validates the response schema and:
    - **upserts** the single top-level review comment (create, or update the previous
      one so PRs don't drown in comments), and
    - posts **inline threads** for findings that carry a valid `file`+`line`.
@@ -38,13 +38,13 @@ Add a markdown file under [`skills/`](skills/) (e.g. `skills/rust-idioms.md`),
 describe the lens, and give the reviewer one instruction to load it. Keep lenses
 focused; the default instructions already cover the repo's conventions.
 
-## Configuring the model / harness
+## Configuring the model
 
 - The model is set by the workflow (`OPENROUTER_MODEL`, default
   `deepseek/deepseek-v4-flash`) and the API key by `OPENROUTER_API_KEY` (GitHub
   secret / env). Both go through **OpenRouter**.
-- Each track pins its harness: the `opencode` track uses `opencode` (v2 beta), the
-  `pi` track uses `pi`.
+- The workflow pins pi. The reviewer has only `read`, `grep`, `find`, and `ls` tools;
+  prompt instructions are not the security boundary.
 
 ## Inline threads & resolving
 
@@ -53,17 +53,12 @@ focused; the default instructions already cover the repo's conventions.
 - If the model returns a `line` that's not actually part of the diff (it sometimes
   guesses), the GitHub API rejects it (422) and the bot keeps the finding in the
   summary comment instead — no user-visible failure.
-- **Resolving threads:** the bot reconciles threads to the current findings — it
-  resolves a thread whose finding is no longer flagged, and reopens one that is.
-  Resolving uses GraphQL, which the default `GITHUB_TOKEN` cannot do
-  ("Resource not accessible by integration"). To enable full resolve/open, configure
-  an optional `REVIEW_BOT_TOKEN` secret (a PAT with `repo` scope); without it the bot
-  posts/updates threads but resolves best-effort (logged, non-fatal).
+- The bot does not resolve or reopen threads. GitHub Actions' default token cannot
+  perform those GraphQL mutations reliably.
 
 ## Keeping this healthy
 
-- A review that can't be parsed (bad JSON, harness error) leaves the previous
-  comment in place and surfaces the raw error in the run log — don't delete the old
-  review on a transient failure.
+- A review that cannot be parsed or fails schema validation leaves the previous
+  comment in place and logs a bounded excerpt of the invalid response.
 - If the reviewer agent or its config changes, bump the `REVIEW_BOT_MARKER` version
   in the workflow so the bot posts a fresh comment instead of editing an old schema.

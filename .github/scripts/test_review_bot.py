@@ -6,7 +6,12 @@ import unittest
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from review_bot import parse_review_json, _first_balanced_object, finding_fid  # noqa: E402
+from review_bot import (  # noqa: E402
+    _first_balanced_object,
+    finding_fid,
+    parse_review_json,
+    validate_review,
+)
 
 SAMPLE = {
     "verdict": "changes_requested",
@@ -44,6 +49,21 @@ class ParseReviewJsonTest(unittest.TestCase):
 
     def test_empty(self):
         self.assertIsNone(parse_review_json(""))
+
+    def test_missing_required_field_returns_none(self):
+        invalid = dict(SAMPLE)
+        del invalid["verdict"]
+        self.assertIsNone(parse_review_json(json.dumps(invalid)))
+
+    def test_invalid_finding_returns_none(self):
+        invalid = dict(SAMPLE)
+        invalid["findings"] = [{"severity": "bug"}]
+        self.assertIsNone(parse_review_json(json.dumps(invalid)))
+
+    def test_rejects_boolean_line_number(self):
+        invalid = json.loads(SAMPLE_JSON)
+        invalid["findings"][0]["line"] = True
+        self.assertIsNone(validate_review(invalid))
 
 
 class FirstBalancedObjectTest(unittest.TestCase):

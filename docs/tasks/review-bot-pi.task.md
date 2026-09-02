@@ -6,47 +6,49 @@ branch: vfp/agent/feature/review-bot-pi
 pr: https://github.com/victoryforphil/AutonomyAge/pull/45
 desc: Build a Greptile-like PR review GitHub Action powered by pi + OpenRouter + DeepSeek V4 Flash.
 status: active
-update: Scaffold done — reviewer config, REVIEW.md rules, orchestrator, pi workflow; ready to iterate on CI.
-last_updated: 2026-08-22
+update: Pi hardening complete — trusted-base workflow, read-only agent, and strict schema validation; pending PR checks.
+last_updated: 2026-09-02
 ---
 
 ## Context
-Mimic Greptile's PR review behaviour in this repo using the `pi` coding agent as the
-harness. Parallel track: `review-bot-opencode` (opencode v2 beta). Shared review config
-lives in `.agents/reviewer/` + root `REVIEW.md`; only the harness wiring differs.
+Mimic Greptile's PR review behaviour in this repo using pi as the sole agent harness.
+Reviewer configuration lives in `.agents/reviewer/` and rules in `REVIEW.md`.
 
 ## Todos
 - [x] Add `.agents/reviewer/SKILL.md` (reviewer agent: identity, rules, output schema)
 - [x] Add root `REVIEW.md` (repo review rules / style checks)
-- [x] Add `.github/scripts/review_bot.py` (harness-agnostic orchestrator)
-- [x] Add `.github/workflows/review-pi.yaml` (pi wiring)
-- [ ] Push branch + open PR; iterate on the review comment/CI until green
-- [ ] Match more Greptile features: inline comments, threads, resolve/unresolve, fix prompts, diagrams, PR-desc suggestions
+- [x] Add `.github/scripts/review_bot.py` (pi orchestration)
+- [x] Add `.github/workflows/review-pi.yaml` (trusted-base Pi wiring)
+- [x] Harden trusted execution, tool access, and review schema validation
+- [x] Remove unsupported inline-thread resolution mutations
+- [ ] Merge after required PR checks pass
 
 ## State
-- Scaffold committed; not yet pushed/iterated. Validated pi runs headless against
-  OpenRouter (`pi -p --mode json --thinking off --no-session`).
-- pi emits JSONL events; the orchestrator parses the last `agent_end` message.
+- Pi runs headlessly with `--mode json`, `--thinking off`, `--no-session`, and an
+  enforced read-only tool allowlist.
+- The review and fix workflows run trusted base-revision scripts/configuration and
+  fetch the PR head only to generate a diff.
+- Parser tests cover valid JSON plus required-schema and malformed-finding rejection.
 
 ## Risks
-- pi `--mode json` can interleave ANSI to stderr (not stdout); captured separately.
-- Agent output is JSON; a non-JSON reply fails the run (falls back to leaving the old comment).
+- Review quality remains model-dependent; tune rules from observed findings after merge.
 
 ## Human help
-- Confirm the default model (`deepseek/deepseek-v4-flash`) and OpenRouter key are right for pi.
+- No human input required.
 
 ## Followups
-- Compare against `review-bot-opencode`; reconcile shared `.agents/reviewer/` + `REVIEW.md`.
-- Move any repeated findings into `REVIEW.md` so rules accumulate.
+- Monitor review usefulness after merge; tune `REVIEW.md` from observed findings.
+- Add thread resolution only with a tested GitHub credential model.
 
 ## Links
 - Reviewer config: `.agents/reviewer/README.md`
 - Rules: `REVIEW.md`
-- Parallel track: `docs/tasks/review-bot-opencode.task.md`
+- PR: https://github.com/victoryforphil/AutonomyAge/pull/45
 
 ## Open questions
-- Should the pi track load the reviewer via `--skill` in addition to the injected prompt?
+- None.
 
 ## Advice / lessons
-- Use `--thinking off` on pi; DeepSeek V4 Flash emits large thinking blocks that bloat output/cost.
-- Run pi with `@<prompt-file>` so the prompt is included without argv limits.
+- Do not execute PR-controlled code in a workflow that has secrets or write tokens.
+- Schema validation must reject incomplete JSON rather than render it as an approval.
+- Pass prompts by file and enforce Pi's tool allowlist; prompts are not a security boundary.

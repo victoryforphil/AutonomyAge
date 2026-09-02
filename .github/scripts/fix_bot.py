@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
 """
-Greptile-style fix prompts. Reuses the harness plumbing from review_bot.py.
+Greptile-style fix prompts.
 
 Triggered by an `issue_comment` that asks the bot to fix something (the workflow
 filters the comment). Builds a fix-generation prompt from REVIEW.md + the reviewer
-skill + the PR diff + the requested instruction, runs the harness, and upserts a
-single fix-suggestion comment on the PR.
+skill + the PR diff + the requested instruction, runs pi, and upserts a single
+fix-suggestion comment on the PR.
 """
 
 import argparse
@@ -17,12 +17,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from review_bot import (  # noqa: E402
-    invoke_harness,
-    gh,
-    log,
-    read_text,
-)
+from review_bot import invoke_pi, gh, log, read_text  # noqa: E402
 
 FIX_MARKER = "<!-- review-bot-fix:v1 -->"
 
@@ -79,7 +74,6 @@ def main():
     ap.add_argument("--pr", required=True, type=int)
     ap.add_argument("--base", required=True)
     ap.add_argument("--head", required=True)
-    ap.add_argument("--harness", required=True, choices=["opencode", "pi"])
     ap.add_argument("--rules", default="REVIEW.md")
     ap.add_argument("--reviewer", default=".agents/reviewer/SKILL.md")
     ap.add_argument("--instruction", required=True, help="the fix request text")
@@ -116,7 +110,7 @@ def main():
         f.write(prompt)
         prompt_path = f.name
     try:
-        raw = invoke_harness(args.harness, prompt_path, model_id, api_key, repo_dir)
+        raw = invoke_pi(prompt_path, model_id, api_key, repo_dir)
     finally:
         try:
             os.unlink(prompt_path)

@@ -1,17 +1,16 @@
 #!/usr/bin/env python3
 """
-Greptile-style review bot.
+Pi-powered PR review bot.
 
 Builds a review prompt from REVIEW.md + the reviewer SKILL.md + the PR diff/context,
-runs one agent harness (opencode or pi) against OpenRouter, parses the JSON review,
-then:
+runs pi against OpenRouter, validates the JSON review, then:
 
   1. upserts the single top-level PR review comment (create, or update the previous
      one containing the review-bot marker), and
   2. posts inline review threads for findings that carry a valid file+line.
 
-Harness-agnostic: the only harness-specific part is how we invoke the CLI and parse
-its output. See .agents/reviewer/README.md.
+The workflow runs this trusted base-revision code; it never executes code from the PR
+being reviewed. See .agents/reviewer/README.md.
 """
 
 import argparse
@@ -19,7 +18,6 @@ import hashlib
 import json
 import os
 import re
-import shutil
 import subprocess
 import sys
 import tempfile
@@ -46,7 +44,6 @@ def run(cmd, env=None, cwd=None, timeout=900):
 
 
 _SECRET_FLAGS = {"--api-key", "--token", "--password"}
-_SECRET_ENV = {"OPENROUTER_API_KEY", "GITHUB_TOKEN", "GH_TOKEN", "OPENAI_API_KEY"}
 
 
 def _redact(argv):
@@ -96,75 +93,25 @@ def gh(method, path, payload=None):
 # harness invocation
 # --------------------------------------------------------------------------- #
 
-def invoke_harness(harness, prompt_path, model_id, api_key, repo_dir):
-    """Run the chosen harness on prompt_path, return the raw assistant text."""
-    with open(prompt_path, "r", encoding="utf-8") as fh:
-        prompt = fh.read()
-    # Keep the message comfortably under Linux's ~128KB per-arg limit.
-    prompt = prompt[:110_000]
-
-    if harness == "opencode":
-        # opencode needs a clean datastore; a corrupt/locked global DB breaks it.
-        # Pass the prompt as the message (not --file into /tmp): the agent otherwise
-        # tries to `read` the /tmp file and its external-directory permission auto-
-        # rejects, stalling the run.
-        tmpdata = tempfile.mkdtemp(prefix="ocdata-")
-        env = dict(os.environ)
-        env["OPENROUTER_API_KEY"] = api_key
-        env["XDG_DATA_HOME"] = tmpdata
-        env["XDG_CACHE_HOME"] = tmpdata
-        try:
-            cmd = [
-                "opencode",
-                "run",
-                prompt,
-                "--format", "json",
-                "-m", f"openrouter/{model_id}",
-            ]
-            res = run(cmd, env=env, cwd=repo_dir)
-            if res.returncode != 0:
-                log(f"opencode stderr: {res.stderr[-2000:]}")
-            return extract_opencode_text(res.stdout)
-        finally:
-            shutil.rmtree(tmpdata, ignore_errors=True)
-
-    if harness == "pi":
-        env = dict(os.environ)
-        env["OPENROUTER_API_KEY"] = api_key
-        cmd = [
-            "pi", "-p", f"@{prompt_path}",
-            "--provider", "openrouter",
-            "--model", f"openrouter/{model_id}",
-            # key read from OPENROUTER_API_KEY env (never on argv -> never in logs)
-            "--mode", "json",
-            "--thinking", "off",
-            "--no-session",
-            "--no-approve",
-        ]
-        res = run(cmd, env=env, cwd=repo_dir)
-        if res.returncode != 0:
-            log(f"pi stderr: {res.stderr[-2000:]}")
-        return extract_pi_text(res.stdout)
-
-    raise ValueError(f"unknown harness: {harness}")
-
-
-def extract_opencode_text(stdout):
-    parts = []
-    for line in stdout.splitlines():
-        line = line.strip()
-        if not line or not line.startswith("{"):
-            continue
-        try:
-            ev = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if ev.get("type") == "text":
-            part = ev.get("part", {})
-            if isinstance(part, dict) and part.get("type") == "text":
-                parts.append(part.get("text", ""))
-    return "".join(parts)
-
+def invoke_pi(prompt_path, model_id, api_key, repo_dir):
+    """Run pi on prompt_path and return the raw assistant text."""
+    env = dict(os.environ)
+    env["OPENROUTER_API_KEY"] = api_key
+    cmd = [
+        "pi", "-p", f"@{prompt_path}",
+        "--provider", "openrouter",
+        "--model", f"openrouter/{model_id}",
+        # Key read from OPENROUTER_API_KEY env (never on argv -> never in logs).
+        "--mode", "json",
+        "--thinking", "off",
+        "--no-session",
+        "--no-approve",
+        "--tools", "read,grep,find,ls",
+    ]
+    res = run(cmd, env=env, cwd=repo_dir)
+    if res.returncode != 0:
+        log(f"pi stderr: {res.stderr[-2000:]}")
+    return extract_pi_text(res.stdout)
 
 def extract_pi_text(stdout):
     # last agent_end carries the full messages array
@@ -189,34 +136,89 @@ def extract_pi_text(stdout):
                     text.append(c.get("text", ""))
     return "".join(text)
 
+_VERDICTS = {"approve", "changes_requested", "info"}
+_RISK_LEVELS = {"low", "medium", "high"}
+_FINDING_SEVERITIES = {"bug", "style", "suggestion"}
+_CHECK_STATUSES = {"pass", "issue", "na"}
+
+
+def _is_string_list(value):
+    return isinstance(value, list) and all(isinstance(item, str) for item in value)
+
+
+def _is_valid_finding(finding):
+    if not isinstance(finding, dict):
+        return False
+    if finding.get("severity") not in _FINDING_SEVERITIES:
+        return False
+    if not all(isinstance(finding.get(key), str) and finding[key].strip()
+               for key in ("title", "description", "file", "suggestion")):
+        return False
+    line = finding.get("line")
+    return line is None or (isinstance(line, int) and not isinstance(line, bool)
+                            and line > 0)
+
+
+def _is_valid_check(check):
+    if not isinstance(check, dict):
+        return False
+    if not isinstance(check.get("area"), str) or not check["area"].strip():
+        return False
+    if check.get("status") not in _CHECK_STATUSES:
+        return False
+    return "note" not in check or check["note"] is None or isinstance(check["note"], str)
+
+
+def validate_review(review):
+    """Return review only when it satisfies the reviewer output contract."""
+    if not isinstance(review, dict):
+        return None
+    if review.get("verdict") not in _VERDICTS:
+        return None
+    if not isinstance(review.get("summary"), str):
+        return None
+    if review.get("risk_level") not in _RISK_LEVELS:
+        return None
+    if not _is_string_list(review.get("risk_sources", [])):
+        return None
+    if not isinstance(review.get("findings"), list):
+        return None
+    if not all(_is_valid_finding(finding) for finding in review["findings"]):
+        return None
+    if not all(_is_valid_check(check) for check in review.get("checks", [])):
+        return None
+    if not _is_string_list(review.get("suggested_tests", [])):
+        return None
+    for key in ("pr_desc_suggestion", "diagram"):
+        if key in review and review[key] is not None and not isinstance(review[key], str):
+            return None
+    return review
+
+
+def _parse_json_object(candidate):
+    try:
+        return validate_review(json.loads(candidate))
+    except json.JSONDecodeError:
+        return None
+
 
 def parse_review_json(raw_text):
-    """Pull a JSON object out of the model's reply. Tolerant of fences/prose."""
+    """Pull a schema-valid JSON review out of the model's reply."""
     if not raw_text:
         return None
+    review = _parse_json_object(raw_text)
+    if review:
+        return review
     candidates = []
-    # direct
-    try:
-        return json.loads(raw_text)
-    except json.JSONDecodeError:
-        pass
-    # fenced block(s)
     for fence in re.finditer(r"```(?:json)?\s*([\s\S]*?)```", raw_text):
         candidates.append(fence.group(1))
-    # first {...} block via brace matching (robust to trailing prose)
     candidates.append(_first_balanced_object(raw_text))
-    for cand in candidates:
-        if not cand:
-            continue
-        cand = cand.strip()
-        try:
-            obj = json.loads(cand)
-            if isinstance(obj, dict):
-                return obj
-        except json.JSONDecodeError:
-            continue
+    for candidate in candidates:
+        if candidate:
+            review = _parse_json_object(candidate.strip())
+            if review:
+                return review
     return None
-
 
 def _first_balanced_object(text):
     """Return the substring of the first balanced {...} object, or ''."""
@@ -381,65 +383,6 @@ def inline_body(f, marker):
             f"<!-- review-bot-fid:{fid} -->")
 
 
-def gh_graphql(query, variables):
-    """Run a GraphQL query/mutation via `gh api graphql`. Returns data or None."""
-    cmd = ["gh", "api", "graphql", "-f", f"query={query}"]
-    for k, v in variables.items():
-        cmd += ["-F", f"{k}={v}"]
-    res = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
-    if res.returncode != 0:
-        log(f"gh api graphql failed: {res.stderr.strip()}")
-        return None
-    try:
-        return json.loads(res.stdout)
-    except json.JSONDecodeError:
-        return None
-
-
-def reconcile_inline_threads(owner, repo, pr, current_fids):
-    """Resolve stale review threads (finding no longer flagged) and unresolve ones
-    that have reopened. Best-effort: never fails the run."""
-    try:
-        q = ("query($owner:String!,$repo:String!,$pr:Int!){"
-             "repository(owner:$owner,name:$repo){"
-             "pullRequest(number:$pr){"
-             "reviewThreads(first:100){nodes{id isResolved "
-             "comments(first:100){nodes{databaseId body}}}}} } }")
-        data = gh_graphql(q, {"owner": owner, "repo": repo, "pr": pr})
-        nodes = (((data or {}).get("data", {}) or {}).get("repository", {}) or {}) \
-            .get("pullRequest", {}).get("reviewThreads", {}).get("nodes", [])
-        for t in nodes:
-            comments = t.get("comments", {}).get("nodes", [])
-            fid = None
-            for c in comments:
-                m = re.search(r"review-bot-fid:([0-9a-f]{16})", c.get("body", "") or "")
-                if m:
-                    fid = m.group(1)
-                    break
-            if not fid:
-                continue
-            if fid not in current_fids:
-                # finding no longer flagged -> resolved (fixed or dropped)
-                if not t.get("isResolved"):
-                    mutate("resolveReviewThread", t["id"])
-            else:
-                # finding still present -> keep it open
-                if t.get("isResolved"):
-                    mutate("unresolveReviewThread", t["id"])
-    except Exception as e:  # noqa: BLE001
-        log(f"reconcile_inline_threads error: {e}")
-
-
-def mutate(mutation, node_id):
-    q = (f"mutation {{ {mutation}(input: {{threadId: \"{node_id}\"}}) "
-         f"{{ clientMutationId }} }}")
-    res = gh_graphql(q, {})
-    log(f"{mutation} on {node_id}: "
-        + ("ok" if res else "failed"))
-
-
-def current_fids(findings):
-    return {finding_fid(f) for f in findings if f.get("file") and f.get("line") is not None}
 
 
 def post_inline_comments(owner, repo, pr, head_sha, findings, marker):
@@ -532,7 +475,6 @@ def main():
     ap.add_argument("--pr", required=True, type=int)
     ap.add_argument("--base", required=True, help="base commit sha")
     ap.add_argument("--head", required=True, help="head commit sha")
-    ap.add_argument("--harness", required=True, choices=["opencode", "pi"])
     ap.add_argument("--rules", default="REVIEW.md")
     ap.add_argument("--reviewer", default=".agents/reviewer/SKILL.md")
     ap.add_argument("--task-note", default="")
@@ -595,8 +537,7 @@ def main():
             f.write(prompt)
             prompt_path = f.name
         try:
-            raw = invoke_harness(args.harness, prompt_path, model_id, api_key,
-                                 repo_dir)
+            raw = invoke_pi(prompt_path, model_id, api_key, repo_dir)
         finally:
             try:
                 os.unlink(prompt_path)
@@ -626,12 +567,8 @@ def main():
 
     upsert_review_comment(owner, repo, args.pr, args.marker, body)
 
-    # ---- inline threads ----
-    head_sha = args.head
-    findings = review.get("findings", [])
-    post_inline_comments(owner, repo, args.pr, head_sha, findings, args.marker)
-    # Resolve threads whose finding is no longer flagged; reopen ones that persist.
-    reconcile_inline_threads(owner, repo, args.pr, current_fids(findings))
+    post_inline_comments(owner, repo, args.pr, args.head, review["findings"],
+                         args.marker)
 
     log("done. verdict=%s findings=%d" % (review.get("verdict"),
                                           len(review.get("findings", []))))
