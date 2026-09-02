@@ -1,3 +1,3 @@
 [workspace]
-members = [ "libs/vs-data-store", "libs/vs-wtf", "libs/vs-broker"]
+members = [ "libs/vs-data-store", "libs/vs-wtf", "libs/vs-broker", "libs/vs-dir"]
 

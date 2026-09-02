@@ -1853,6 +1853,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "vs-dir"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+]
+
+[[package]]
 name = "vs-wtf"
 version = "0.0.1"
 dependencies = [
